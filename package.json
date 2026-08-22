@@ -1,5 +1,5 @@
 {
-  "name": "pi-zellij-status",
+  "name": "pie-zellij-status",
   "private": true,
   "keywords": ["pi-package"],
   "pi": {

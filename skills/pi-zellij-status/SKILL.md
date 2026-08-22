@@ -1,11 +1,11 @@
 ---
-name: pi-zellij-status
-description: Extend the pi-zellij-status extension when a new Pi package introduces user-blocking interactions. Use this skill to inspect the package source, distinguish agent waiting from user-invoked UI, choose an event/tool/state adapter, and document the integration.
+name: pie-zellij-status
+description: Extend the pie-zellij-status extension when a new Pi package introduces user-blocking interactions. Use this skill to inspect the package source, distinguish agent waiting from user-invoked UI, choose an event/tool/state adapter, and document the integration.
 ---
 
-# Extending pi-zellij-status
+# Extending pie-zellij-status
 
-Read `README.md` in the pi-zellij-status project before changing the extension.
+Read `README.md` in the pie-zellij-status project before changing the extension.
 
 ## Decision procedure
 

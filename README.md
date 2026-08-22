@@ -1,4 +1,4 @@
-# pi-zellij-status
+# pie-zellij-status
 
 A pragmatic Pi extension that mirrors Pi attention state into the current Zellij session.
 
