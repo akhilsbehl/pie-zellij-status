@@ -51,11 +51,5 @@ Read `README.md` in the pie-zellij-status project before changing the extension.
 - Permission system:
   - `permissions:ui_prompt` starts waiting.
   - `permissions:decision` ends one permission wait.
-- Ask-user-question:
-  - `rpiv:ask-user:blocked` with `{ active: true }` starts waiting.
-  - `{ active: false }` ends it.
-- Plan mode:
-  - `plan_mode_question` tool execution represents a model-generated question.
-  - `plan-mode-state` with `awaitingAction: true` and a `latestPlan` represents the completed-plan decision menu after `agent_settled`.
 
 The extension is intentionally pragmatic. It does not patch Pi core or monkey-patch `ctx.ui`.

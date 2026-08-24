@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -9,9 +9,6 @@ const IDLE_STATUS = "idle";
 const WAITING_STATUS = "waiting";
 const CHANNEL_PERMISSION_PROMPT = "permissions:ui_prompt";
 const CHANNEL_PERMISSION_DECISION = "permissions:decision";
-const CHANNEL_ASK_USER_BLOCKED = "rpiv:ask-user:blocked";
-const PLAN_QUESTION_TOOL = "plan_mode_question";
-const PLAN_STATE_ENTRY = "plan-mode-state";
 
 type Status = "idle" | "running" | "waiting" | undefined;
 type StatusLabel =
@@ -22,7 +19,6 @@ type StatusLabel =
   | `☼ Idle ${number} / ● Running ${number} / ◷ Waiting ${number}`;
 type Pane = { id: number; title?: string; tab_id?: number; tab_name?: string };
 type Tab = { tab_id: number; name?: string };
-type PlanStateEntry = { type?: string; customType?: string; data?: unknown };
 
 export default function piZellijStatus(pi: ExtensionAPI): void {
   pi.on("resources_discover", () => ({
@@ -37,7 +33,6 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   let waitingReasons = new Map<string, number>();
   let idle = false;
   let updateQueue = Promise.resolve();
-  let disposed = false;
 
   const enqueueUpdate = () => {
     updateQueue = updateQueue.then(() => updateZellij()).catch(() => undefined);
@@ -59,13 +54,6 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     if ((waitingReasons.get(reason) ?? 0) === 0) changeWaiting(reason, 1);
   };
 
-  const clearWaiting = (reason: string) => {
-    if ((waitingReasons.get(reason) ?? 0) === 0) return;
-    waitingReasons.delete(reason);
-    idle = false;
-    enqueueUpdate();
-  };
-
   const setIdle = () => {
     if (waitingCount() > 0) return;
     if (!idle) process.stdout.write("\x07");
@@ -81,27 +69,10 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
 
   pi.on("input", () => {
     clearIdle();
-    // A new chat turn is also an explicit action on a completed-plan menu.
-    clearWaiting("plan-review");
   });
 
-  pi.on("agent_settled", (_event, ctx) => {
+  pi.on("agent_settled", () => {
     setIdle();
-    // pi-plan-mode presents its completed-plan menu from its own
-    // agent_settled handler and currently exposes no public event for it.
-    setImmediate(() => {
-      if (disposed) return;
-      if (planReviewIsReady(ctx)) ensureWaiting("plan-review");
-      else clearWaiting("plan-review");
-    });
-  });
-
-  pi.on("tool_execution_start", (event) => {
-    if (event.toolName === PLAN_QUESTION_TOOL) ensureWaiting("plan-question");
-  });
-
-  pi.on("tool_execution_end", (event) => {
-    if (event.toolName === PLAN_QUESTION_TOOL) changeWaiting("plan-question", -1);
   });
 
   const unsubscribePermissionPrompt = pi.events.on(CHANNEL_PERMISSION_PROMPT, () => {
@@ -110,16 +81,9 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   const unsubscribePermissionDecision = pi.events.on(CHANNEL_PERMISSION_DECISION, () => {
     changeWaiting("permission", -1);
   });
-  const unsubscribeAskUser = pi.events.on(CHANNEL_ASK_USER_BLOCKED, (data) => {
-    if (isRecord(data) && data.active === true) ensureWaiting("ask-user");
-    else if (isRecord(data) && data.active === false) changeWaiting("ask-user", -1);
-  });
-
   pi.on("session_shutdown", async () => {
-    disposed = true;
     unsubscribePermissionPrompt();
     unsubscribePermissionDecision();
-    unsubscribeAskUser();
     await updateQueue.catch(() => undefined);
     await clearZellijStatus().catch(() => undefined);
   });
@@ -187,10 +151,6 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     const result = await execFileAsync("zellij", ["--session", session, ...args], { maxBuffer: 1024 * 1024 });
     return result.stdout;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function stripStatus(name: string): string {
@@ -292,11 +252,4 @@ function aggregateTabStatus(panes: Pane[], ownPaneId: string, ownStatus: Status)
   const contributingPanes = counts.idle + counts.running + counts.waiting;
   if (contributingPanes === 0) return undefined;
   return `☼ Idle ${counts.idle} / ● Running ${counts.running} / ◷ Waiting ${counts.waiting}`;
-}
-
-function planReviewIsReady(ctx: ExtensionContext): boolean {
-  const entries = ctx.sessionManager.getBranch() as unknown as PlanStateEntry[];
-  const latest = [...entries].reverse().find((entry) => entry.type === "custom" && entry.customType === PLAN_STATE_ENTRY);
-  if (!latest || !isRecord(latest.data)) return false;
-  return latest.data.awaitingAction === true && typeof latest.data.latestPlan === "string";
 }
