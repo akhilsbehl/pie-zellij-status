@@ -25,7 +25,7 @@ Read `README.md` in the pie-zellij-status project before changing the extension.
 
 2. Classify each interaction:
    - Agent-originated: the model called a tool or the agent workflow reached a decision point. This can set `waiting`.
-   - User-originated: the user typed a command such as `/compact` or `/btw`. Do not set `waiting` merely because that command opens a menu.
+   - User-originated: the user typed a command such as `/compact`. Do not set `waiting` merely because that command opens a menu.
    - Background work: long-running work without user input. Do not set `waiting`.
 
 3. Prefer signals in this order:

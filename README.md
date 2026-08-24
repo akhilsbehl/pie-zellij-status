@@ -13,7 +13,6 @@ The extension is intentionally Zellij-only. It exits without changing anything u
 ## Current integrations
 
 - `@gotgenes/pi-permission-system`: `permissions:ui_prompt` and `permissions:decision`.
-- `pi-btw` 0.4.1: its `/btw` and overlay menus are user-invoked and are not treated as agent waiting.
 - Automatic permission review does not expose a current human blocking interaction used by this extension.
 
 ## Naming
