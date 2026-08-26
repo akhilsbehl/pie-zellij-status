@@ -48,8 +48,20 @@ Read `README.md` in the pie-zellij-status project before changing the extension.
 
 ## Existing adapters
 
-- Permission system:
-  - `permissions:ui_prompt` starts waiting.
-  - `permissions:decision` ends one permission wait.
+There are currently no package-specific waiting adapters. Do not restore the
+removed permission-event adapter: `pie-permission-auto-review-codex` now uses
+Pi's `tool_call` hook and `ctx.ui.confirm`, not the old custom event channels.
+There is no safe signal here that distinguishes its model review from the
+short interval where a user confirmation is open.
+
+`pi-bg-tasks` and `pi-subagents` are composed dynamically by the ambient
+`pie-damare` extension. Their background work, delegation, and supervisor
+messages are not user decisions and must not set `waiting`.
+
+This extension emits `subagent:acknowledge-extension` in delegated child
+processes. Treat `pi-subagents`' `runtimeAcknowledgedExtensions` result
+metadata as the only reliable evidence that a child extension registered; do
+not infer child registration from `pi list`, a package installation, or an
+ambient extension that the child launch policy may have disabled.
 
 The extension is intentionally pragmatic. It does not patch Pi core or monkey-patch `ctx.ui`.

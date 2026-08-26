@@ -1,6 +1,7 @@
 {
   "name": "pie-zellij-status",
   "private": true,
+  "type": "module",
   "keywords": ["pi-package"],
   "pi": {
     "extensions": ["./extensions"],

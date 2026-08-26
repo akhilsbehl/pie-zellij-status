@@ -12,8 +12,36 @@ The extension is intentionally Zellij-only. It exits without changing anything u
 
 ## Current integrations
 
-- `@gotgenes/pi-permission-system`: `permissions:ui_prompt` and `permissions:decision`.
-- Automatic permission review does not expose a current human blocking interaction used by this extension.
+The effective runtime inventory was checked with `kohai`, then reconciled with
+Pi settings and the source imports used by the ambient `pie-damare` extension.
+This is wider than `pi list`: two packages are loaded by `pie-damare` even
+though their settings entries explicitly set `extensions: []`.
+
+| Extension/package | How it is loaded | Version or revision |
+| --- | --- | --- |
+| `pie-damare` | Ambient `~/.pi/agent/extensions/pie-damare.ts`; also composes `pi-bg-tasks` and `pi-subagents` | `329ef0a` |
+| `pie-jina` | Ambient `~/.pi/agent/extensions/pie-jina.ts` | `3407fed` |
+| `pie-permission-auto-review-codex` | Ambient `~/.pi/agent/extensions/pie-permission-auto-review-codex` | 0.1.4 |
+| `pie-zellij-status` | Ambient symlink plus this project package | current checkout |
+| `pi-bg-tasks` | Dynamically invoked by `pie-damare` | 0.1.2 |
+| `pi-subagents` | Dynamically invoked by `pie-damare`; the active `kohai` run is runtime evidence | 0.56.0 |
+| `pi-openai-server-compaction` | Configured Git package | 0.1.0 |
+| `pi-agent-browser-native` | Configured npm package | 0.5.0 |
+| `@narumitw/pi-starship` | Configured npm package | 0.52.2 |
+| `pi-context-view` | Configured npm package | 0.4.3 |
+
+The upgraded permission extension uses the public `tool_call` hook and may
+open `ctx.ui.confirm`; it does not emit the old `permissions:ui_prompt` or
+`permissions:decision` channels. There is therefore deliberately no
+permission-specific adapter here. Subagent execution and background work are
+also not user decisions, so they remain `running`, not `waiting`.
+
+The extension acknowledges itself through
+`subagent:acknowledge-extension` when loaded in a delegated child. This lets
+`pi-subagents` report verified child-runtime registration through
+`runtimeAcknowledgedExtensions`; absence of that metadata remains meaningful.
+Child launch policy can still disable ambient extensions, so this inventory is
+for the current setup/session, not a claim about every child process.
 
 ## Naming
 

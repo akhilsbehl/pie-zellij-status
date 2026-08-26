@@ -5,11 +5,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const EXTENSION_ID = "pie-zellij-status";
 const IDLE_STATUS = "idle";
 const WAITING_STATUS = "waiting";
-const CHANNEL_PERMISSION_PROMPT = "permissions:ui_prompt";
-const CHANNEL_PERMISSION_DECISION = "permissions:decision";
-
 type Status = "idle" | "running" | "waiting" | undefined;
 type StatusLabel =
   | "☼ Idle"
@@ -25,12 +23,20 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     skillPaths: [join(fileURLToPath(new URL("..", import.meta.url)), "skills")],
   }));
 
+  // Cooperate with pi-subagents' child-runtime inventory when this extension
+  // is loaded in a delegated Pi process. This is observability only; it does
+  // not make any assumption about the child's tools or permissions.
+  if (process.env.PI_SUBAGENT_CHILD === "1") {
+    pi.on("session_start", () => {
+      pi.events.emit("subagent:acknowledge-extension", { id: EXTENSION_ID });
+    });
+  }
+
   const session = process.env.ZELLIJ_SESSION_NAME;
   const paneId = process.env.ZELLIJ_PANE_ID;
   if (!session || !paneId) return;
   const numericPaneId = paneId.startsWith("terminal_") ? paneId.slice("terminal_".length) : paneId;
 
-  let waitingReasons = new Map<string, number>();
   let idle = false;
   let updateQueue = Promise.resolve();
 
@@ -38,24 +44,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     updateQueue = updateQueue.then(() => updateZellij()).catch(() => undefined);
   };
 
-  const waitingCount = () => [...waitingReasons.values()].reduce((sum, value) => sum + value, 0);
-
-  const changeWaiting = (reason: string, delta: 1 | -1) => {
-    const wasWaiting = waitingCount() > 0;
-    const next = Math.max(0, (waitingReasons.get(reason) ?? 0) + delta);
-    if (next === 0) waitingReasons.delete(reason);
-    else waitingReasons.set(reason, next);
-    if (!wasWaiting && waitingCount() > 0) process.stdout.write("\x07");
-    idle = false;
-    enqueueUpdate();
-  };
-
-  const ensureWaiting = (reason: string) => {
-    if ((waitingReasons.get(reason) ?? 0) === 0) changeWaiting(reason, 1);
-  };
-
   const setIdle = () => {
-    if (waitingCount() > 0) return;
     if (!idle) process.stdout.write("\x07");
     idle = true;
     enqueueUpdate();
@@ -75,15 +64,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     setIdle();
   });
 
-  const unsubscribePermissionPrompt = pi.events.on(CHANNEL_PERMISSION_PROMPT, () => {
-    ensureWaiting("permission");
-  });
-  const unsubscribePermissionDecision = pi.events.on(CHANNEL_PERMISSION_DECISION, () => {
-    changeWaiting("permission", -1);
-  });
   pi.on("session_shutdown", async () => {
-    unsubscribePermissionPrompt();
-    unsubscribePermissionDecision();
     await updateQueue.catch(() => undefined);
     await clearZellijStatus().catch(() => undefined);
   });
@@ -93,7 +74,6 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   enqueueUpdate();
 
   function currentStatus(): Status {
-    if (waitingCount() > 0) return "waiting";
     if (idle) return "idle";
     return "running";
   }
