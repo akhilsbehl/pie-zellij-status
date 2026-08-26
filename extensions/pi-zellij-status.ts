@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const EXTENSION_ID = "pie-zellij-status";
+const PERMISSION_CONFIRMATION_EVENT = "pie-permission-auto-review-codex:permission-confirmation:v1";
 const IDLE_STATUS = "idle";
 const WAITING_STATUS = "waiting";
 type Status = "idle" | "running" | "waiting" | undefined;
@@ -38,11 +39,19 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   const numericPaneId = paneId.startsWith("terminal_") ? paneId.slice("terminal_".length) : paneId;
 
   let idle = false;
+  const permissionRequests = new Set<string>();
   let updateQueue = Promise.resolve();
 
   const enqueueUpdate = () => {
     updateQueue = updateQueue.then(() => updateZellij()).catch(() => undefined);
   };
+
+  const unsubscribePermissionConfirmation = pi.events.on(PERMISSION_CONFIRMATION_EVENT, (data: unknown) => {
+    if (!isPermissionConfirmationPayload(data)) return;
+    if (data.active) permissionRequests.add(data.requestId);
+    else permissionRequests.delete(data.requestId);
+    enqueueUpdate();
+  });
 
   const setIdle = () => {
     if (!idle) process.stdout.write("\x07");
@@ -65,6 +74,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async () => {
+    unsubscribePermissionConfirmation();
     await updateQueue.catch(() => undefined);
     await clearZellijStatus().catch(() => undefined);
   });
@@ -74,6 +84,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   enqueueUpdate();
 
   function currentStatus(): Status {
+    if (permissionRequests.size > 0) return "waiting";
     if (idle) return "idle";
     return "running";
   }
@@ -131,6 +142,13 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     const result = await execFileAsync("zellij", ["--session", session, ...args], { maxBuffer: 1024 * 1024 });
     return result.stdout;
   }
+}
+
+function isPermissionConfirmationPayload(data: unknown): data is { requestId: string; active: boolean } {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
+  const payload = data as Record<string, unknown>;
+  return typeof payload.requestId === "string" && payload.requestId.length > 0
+    && typeof payload.active === "boolean";
 }
 
 function stripStatus(name: string): string {

@@ -48,11 +48,13 @@ Read `README.md` in the pie-zellij-status project before changing the extension.
 
 ## Existing adapters
 
-There are currently no package-specific waiting adapters. Do not restore the
-removed permission-event adapter: `pie-permission-auto-review-codex` now uses
-Pi's `tool_call` hook and `ctx.ui.confirm`, not the old custom event channels.
-There is no safe signal here that distinguishes its model review from the
-short interval where a user confirmation is open.
+The permission waiting adapter subscribes to
+`pie-permission-auto-review-codex:permission-confirmation:v1`. It accepts only
+payloads with a non-empty string `requestId` and boolean `active`, tracks
+request ids idempotently, and removes the subscription at shutdown. The
+permission package emits the matching inactive event in a `finally` block, so
+resolution and cancellation clear waiting. Do not infer waiting from the
+permission package's model review or generic `tool_call` hook.
 
 `pi-bg-tasks` and `pi-subagents` are composed dynamically by the ambient
 `pie-damare` extension. Their background work, delegation, and supervisor

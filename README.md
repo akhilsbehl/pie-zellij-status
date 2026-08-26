@@ -30,11 +30,16 @@ though their settings entries explicitly set `extensions: []`.
 | `@narumitw/pi-starship` | Configured npm package | 0.52.2 |
 | `pi-context-view` | Configured npm package | 0.4.3 |
 
-The upgraded permission extension uses the public `tool_call` hook and may
-open `ctx.ui.confirm`; it does not emit the old `permissions:ui_prompt` or
-`permissions:decision` channels. There is therefore deliberately no
-permission-specific adapter here. Subagent execution and background work are
-also not user decisions, so they remain `running`, not `waiting`.
+`pie-permission-auto-review-codex` emits the versioned
+`pie-permission-auto-review-codex:permission-confirmation:v1` event immediately
+before and after its agent-originated `ctx.ui.confirm`. The payload is
+`{ requestId: string, active: boolean }`; only the request id and active state
+are exposed. This adapter tracks request ids idempotently, treats malformed
+payloads as no-ops, and clears its subscription at shutdown. Resolution,
+rejection, and cancellation all emit `active: false`. Model review,
+deterministic allows, redirects, no-UI blocks, and user-invoked configuration
+menus do not emit this event. Subagent execution and background work are also
+not user decisions, so they remain `running`, not `waiting`.
 
 The extension acknowledges itself through
 `subagent:acknowledge-extension` when loaded in a delegated child. This lets
