@@ -49,7 +49,7 @@ Read `README.md` in the pie-zellij-status project before changing the extension.
 ## Existing adapters
 
 The permission waiting adapter subscribes to
-`pie-permission-auto-review-codex:permission-confirmation:v1`. It accepts only
+`pie-ez-pass:permission-confirmation:v1`. It accepts only
 payloads with a non-empty string `requestId` and boolean `active`, tracks
 request ids idempotently, and removes the subscription at shutdown. The
 permission package emits the matching inactive event in a `finally` block, so

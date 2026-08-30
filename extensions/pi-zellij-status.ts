@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const EXTENSION_ID = "pie-zellij-status";
-const PERMISSION_CONFIRMATION_EVENT = "pie-permission-auto-review-codex:permission-confirmation:v1";
+const PERMISSION_CONFIRMATION_EVENT = "pie-ez-pass:permission-confirmation:v1";
 const IDLE_STATUS = "idle";
 const WAITING_STATUS = "waiting";
 type Status = "idle" | "running" | "waiting" | undefined;

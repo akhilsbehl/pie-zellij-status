@@ -21,7 +21,7 @@ though their settings entries explicitly set `extensions: []`.
 | --- | --- | --- |
 | `pie-damare` | Ambient `~/.pi/agent/extensions/pie-damare.ts`; also composes `pi-bg-tasks` and `pi-subagents` | `329ef0a` |
 | `pie-jina` | Ambient `~/.pi/agent/extensions/pie-jina.ts` | `3407fed` |
-| `pie-permission-auto-review-codex` | Ambient `~/.pi/agent/extensions/pie-permission-auto-review-codex` | 0.1.4 |
+| `pie-ez-pass` | Ambient `~/.pi/agent/extensions/pie-ez-pass` | 0.2.0 |
 | `pie-zellij-status` | Ambient symlink plus this project package | current checkout |
 | `pi-bg-tasks` | Dynamically invoked by `pie-damare` | 0.1.2 |
 | `pi-subagents` | Dynamically invoked by `pie-damare`; the active `kohai` run is runtime evidence | 0.56.0 |
@@ -30,8 +30,8 @@ though their settings entries explicitly set `extensions: []`.
 | `@narumitw/pi-starship` | Configured npm package | 0.52.2 |
 | `pi-context-view` | Configured npm package | 0.4.3 |
 
-`pie-permission-auto-review-codex` emits the versioned
-`pie-permission-auto-review-codex:permission-confirmation:v1` event immediately
+`pie-ez-pass` emits the versioned
+`pie-ez-pass:permission-confirmation:v1` event immediately
 before and after its agent-originated `ctx.ui.confirm`. The payload is
 `{ requestId: string, active: boolean }`; only the request id and active state
 are exposed. This adapter tracks request ids idempotently, treats malformed
