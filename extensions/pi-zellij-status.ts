@@ -7,15 +7,19 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const EXTENSION_ID = "pie-zellij-status";
 const PERMISSION_CONFIRMATION_EVENT = "pie-ez-pass:permission-confirmation:v1";
+const SUBAGENT_ASYNC_STARTED_EVENT = "subagent:async-started";
+const SUBAGENT_ASYNC_COMPLETE_EVENT = "subagent:async-complete";
+const SUBAGENT_FOREGROUND_COMPLETE_EVENT = "subagent:foreground-complete";
+const SUBAGENT_PROCESS_TERMINAL_EVENT = "subagent:process-terminal";
 const IDLE_STATUS = "idle";
 const WAITING_STATUS = "waiting";
-type Status = "idle" | "running" | "waiting" | undefined;
+type Status = "idle" | "running" | "waiting" | "subagent" | undefined;
 type StatusLabel =
   | "☼ Idle"
   | "● Running"
   | "◷ Waiting"
-  | `I${number}/R${number}/W${number}`
-  | `☼ Idle ${number} / ● Running ${number} / ◷ Waiting ${number}`;
+  | "◆ Subagent"
+  | `☼ I${number} / ● R${number} / ◷ W${number} / ◆ S${number}`;
 type Pane = { id: number; title?: string; tab_id?: number; tab_name?: string };
 type Tab = { tab_id: number; name?: string };
 
@@ -40,6 +44,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
 
   let idle = false;
   const permissionRequests = new Set<string>();
+  const activeSubagents = new Set<string>();
   let updateQueue = Promise.resolve();
 
   const enqueueUpdate = () => {
@@ -52,6 +57,25 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     else permissionRequests.delete(data.requestId);
     enqueueUpdate();
   });
+
+  // pi-subagents emits these lifecycle events in the parent runtime. Keep the
+  // run ids rather than a counter so duplicate events and parallel runs are
+  // handled safely. A terminal event is also consumed as a crash/kill path.
+  const startSubagent = (data: unknown) => {
+    const id = eventId(data);
+    if (id !== undefined) {
+      activeSubagents.add(id);
+      enqueueUpdate();
+    }
+  };
+  const finishSubagent = (data: unknown) => {
+    const id = eventId(data);
+    if (id !== undefined && activeSubagents.delete(id)) enqueueUpdate();
+  };
+  const unsubscribeSubagentStarted = pi.events.on(SUBAGENT_ASYNC_STARTED_EVENT, startSubagent);
+  const unsubscribeSubagentComplete = pi.events.on(SUBAGENT_ASYNC_COMPLETE_EVENT, finishSubagent);
+  const unsubscribeForegroundComplete = pi.events.on(SUBAGENT_FOREGROUND_COMPLETE_EVENT, finishSubagent);
+  const unsubscribeProcessTerminal = pi.events.on(SUBAGENT_PROCESS_TERMINAL_EVENT, finishSubagent);
 
   const setIdle = () => {
     if (!idle) process.stdout.write("\x07");
@@ -75,6 +99,10 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", async () => {
     unsubscribePermissionConfirmation();
+    unsubscribeSubagentStarted();
+    unsubscribeSubagentComplete();
+    unsubscribeForegroundComplete();
+    unsubscribeProcessTerminal();
     await updateQueue.catch(() => undefined);
     await clearZellijStatus().catch(() => undefined);
   });
@@ -85,6 +113,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
 
   function currentStatus(): Status {
     if (permissionRequests.size > 0) return "waiting";
+    if (idle && activeSubagents.size > 0) return "subagent";
     if (idle) return "idle";
     return "running";
   }
@@ -175,7 +204,16 @@ function statusLabel(status: Status): StatusLabel {
   if (status === "idle") return "☼ Idle";
   if (status === "running") return "● Running";
   if (status === "waiting") return "◷ Waiting";
+  if (status === "subagent") return "◆ Subagent";
   throw new Error("Cannot label an undefined status");
+}
+
+function eventId(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return undefined;
+  const payload = data as Record<string, unknown>;
+  if (typeof payload.id === "string" && payload.id.length > 0) return payload.id;
+  if (typeof payload.runId === "string" && payload.runId.length > 0) return payload.runId;
+  return undefined;
 }
 
 function getStatusSuffix(name: string): string | undefined {
@@ -192,27 +230,26 @@ function isStatusSuffix(suffix: string): boolean {
     const colon = token.indexOf(":");
     const status = colon < 0 ? token : token.slice(0, colon);
     const detail = colon < 0 ? "" : token.slice(colon + 1);
-    return (status === IDLE_STATUS || status === "running" || status === WAITING_STATUS)
+    return (status === IDLE_STATUS || status === "running" || status === WAITING_STATUS || status === "subagent")
       && (colon < 0 || detail.length > 0)
       && !detail.includes("[")
       && !detail.includes("]");
   });
 }
 
-function isPaneStatus(suffix: string): suffix is "☼ Idle" | "● Running" | "◷ Waiting" {
-  return suffix === "☼ Idle" || suffix === "● Running" || suffix === "◷ Waiting";
+function isPaneStatus(suffix: string): suffix is "☼ Idle" | "● Running" | "◷ Waiting" | "◆ Subagent" {
+  return suffix === "☼ Idle" || suffix === "● Running" || suffix === "◷ Waiting" || suffix === "◆ Subagent";
 }
 
-function isTabTally(suffix: string): suffix is `I${number}/R${number}/W${number}` | `☼ Idle ${number} / ● Running ${number} / ◷ Waiting ${number}` {
+function isTabTally(suffix: string): suffix is `☼ I${number} / ● R${number} / ◷ W${number} / ◆ S${number}` {
+  if (/^☼ I\d+ \/ ● R\d+ \/ ◷ W\d+ \/ ◆ S\d+$/.test(suffix)) return true;
+  // Recognise formats emitted by earlier versions so they are replaced.
   if (/^☼ Idle \d+ \/ ● Running \d+ \/ ◷ Waiting \d+$/.test(suffix)) return true;
-
   const parts = suffix.split("/");
-  if (parts.length !== 3) return false;
-  return ["I", "R", "W"].every((prefix, index) => {
+  return parts.length === 3 && ["I", "R", "W"].every((prefix, index) => {
     const part = parts[index];
-    if (!part || !part.startsWith(prefix)) return false;
-    const count = part.slice(prefix.length);
-    return count.length > 0 && Number.isInteger(Number(count)) && Number(count) >= 0;
+    const count = part?.slice(prefix.length);
+    return part?.startsWith(prefix) === true && count !== undefined && /^\d+$/.test(count);
   });
 }
 
@@ -221,6 +258,7 @@ function statusFromTitle(title: string | undefined): Status {
   if (suffix === undefined) return undefined;
   const statuses = suffix.split(", ").map(statusFromToken);
   if (statuses.includes(WAITING_STATUS)) return WAITING_STATUS;
+  if (statuses.includes("subagent")) return "subagent";
   if (statuses.includes(IDLE_STATUS)) return IDLE_STATUS;
   return undefined;
 }
@@ -229,17 +267,19 @@ function statusFromToken(token: string): Status {
   if (token === "☼ Idle") return "idle";
   if (token === "● Running") return "running";
   if (token === "◷ Waiting") return "waiting";
+  if (token === "◆ Subagent") return "subagent";
 
   const colon = token.indexOf(":");
   const status = colon < 0 ? token : token.slice(0, colon);
   if (status === WAITING_STATUS) return WAITING_STATUS;
   if (status === IDLE_STATUS) return IDLE_STATUS;
   if (status === "running") return "running";
+  if (status === "subagent") return "subagent";
   return undefined;
 }
 
 function aggregateTabStatus(panes: Pane[], ownPaneId: string, ownStatus: Status): StatusLabel | undefined {
-  const counts = { idle: 0, running: 0, waiting: 0 };
+  const counts = { idle: 0, running: 0, waiting: 0, subagent: 0 };
   for (const pane of panes) {
     const status = String(pane.id) === ownPaneId
       ? ownStatus
@@ -247,7 +287,7 @@ function aggregateTabStatus(panes: Pane[], ownPaneId: string, ownStatus: Status)
     if (status === undefined) continue;
     counts[status]++;
   }
-  const contributingPanes = counts.idle + counts.running + counts.waiting;
+  const contributingPanes = counts.idle + counts.running + counts.waiting + counts.subagent;
   if (contributingPanes === 0) return undefined;
-  return `☼ Idle ${counts.idle} / ● Running ${counts.running} / ◷ Waiting ${counts.waiting}`;
+  return `☼ I${counts.idle} / ● R${counts.running} / ◷ W${counts.waiting} / ◆ S${counts.subagent}`;
 }

@@ -6,7 +6,8 @@ A pragmatic Pi extension that mirrors Pi attention state into the current Zellij
 
 - `idle`: Pi has settled and is ready for a new task. It is cleared by the next chat input.
 - `waiting`: Pi is waiting for a user decision in one of the supported current extensions. It remains until the interaction resolves.
-- No `running` state is displayed.
+- `subagent`: Pi is idle while one or more delegated subagents are active.
+- No `running` state is displayed for an idle parent.
 
 The extension is intentionally Zellij-only. It exits without changing anything unless `ZELLIJ_SESSION_NAME` and `ZELLIJ_PANE_ID` are present.
 
@@ -38,8 +39,10 @@ are exposed. This adapter tracks request ids idempotently, treats malformed
 payloads as no-ops, and clears its subscription at shutdown. Resolution,
 rejection, and cancellation all emit `active: false`. Model review,
 deterministic allows, redirects, no-UI blocks, and user-invoked configuration
-menus do not emit this event. Subagent execution and background work are also
-not user decisions, so they remain `running`, not `waiting`.
+menus do not emit this event. When the parent is actively processing, its
+existing `running` behaviour is unchanged. When processing has settled while
+delegated subagents remain active, the adapter shows `subagent` instead;
+subagent execution and background work never become `waiting`.
 
 The extension acknowledges itself through
 `subagent:acknowledge-extension` when loaded in a delegated child. This lets
@@ -57,7 +60,7 @@ Examples:
 ```text
 my-pane [☼ Idle]
 my-pane [◷ Waiting]
-my-tab [☼ Idle 0 / ● Running 1 / ◷ Waiting 0]
+my-tab [☼ I0 / ● R1 / ◷ W0 / ◆ S0]
 ```
 
 ## Bell

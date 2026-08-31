@@ -58,7 +58,12 @@ permission package's model review or generic `tool_call` hook.
 
 `pi-bg-tasks` and `pi-subagents` are composed dynamically by the ambient
 `pie-damare` extension. Their background work, delegation, and supervisor
-messages are not user decisions and must not set `waiting`.
+messages are not user decisions and must not set `waiting`. The status adapter
+tracks `subagent:async-started`, `subagent:async-complete`,
+`subagent:foreground-complete`, and `subagent:process-terminal` to show a
+`subagent` pane status while the parent is idle. Tab tallies use the icons and
+initials `☼ I`, `● R`, `◷ W`, and `◆ S`; legacy tally formats are accepted while
+renaming.
 
 This extension emits `subagent:acknowledge-extension` in delegated child
 processes. Treat `pi-subagents`' `runtimeAcknowledgedExtensions` result
