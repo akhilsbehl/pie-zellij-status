@@ -40,7 +40,11 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   const session = process.env.ZELLIJ_SESSION_NAME;
   const paneId = process.env.ZELLIJ_PANE_ID;
   if (!session || !paneId) return;
-  const numericPaneId = paneId.startsWith("terminal_") ? paneId.slice("terminal_".length) : paneId;
+  const zellijSession = session;
+  const currentPaneId = paneId;
+  const numericPaneId = currentPaneId.startsWith("terminal_")
+    ? currentPaneId.slice("terminal_".length)
+    : currentPaneId;
 
   let idle = false;
   const permissionRequests = new Set<string>();
@@ -124,7 +128,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     if (!ownPane || ownPane.tab_id === undefined) return;
 
     const status = currentStatus();
-    await action("rename-pane", "--pane-id", paneId, appendStatus(stripStatus(ownPane.title ?? "pi"), status));
+    await action("rename-pane", "--pane-id", currentPaneId, appendStatus(stripStatus(ownPane.title ?? "pi"), status));
 
     const refreshedPanes = await listPanes();
     const tabPanes = refreshedPanes.filter((pane) => pane.tab_id === ownPane.tab_id);
@@ -139,7 +143,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
     const ownPane = panes.find((pane) => String(pane.id) === numericPaneId);
     if (!ownPane || ownPane.tab_id === undefined) return;
 
-    await action("rename-pane", "--pane-id", paneId, stripStatus(ownPane.title ?? "pi"));
+    await action("rename-pane", "--pane-id", currentPaneId, stripStatus(ownPane.title ?? "pi"));
 
     const refreshedPanes = await listPanes();
     const tabPanes = refreshedPanes.filter((pane) => pane.tab_id === ownPane.tab_id && String(pane.id) !== numericPaneId);
@@ -168,7 +172,7 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   }
 
   async function zellij(...args: string[]): Promise<string> {
-    const result = await execFileAsync("zellij", ["--session", session, ...args], { maxBuffer: 1024 * 1024 });
+    const result = await execFileAsync("zellij", ["--session", zellijSession, ...args], { maxBuffer: 1024 * 1024 });
     return result.stdout;
   }
 }
