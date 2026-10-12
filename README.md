@@ -65,7 +65,7 @@ my-tab [☼ I0 / ● R1 / ◷ W0 / ◆ S0]
 
 ## Bell
 
-A Zellij visual bell is produced by the Zellij pane when a waiting transition is displayed. Configure Zellij with `visual_bell true`. The extension does not use Windows notifications.
+The extension does not emit a terminal bell (BEL) or desktop notifications. Attention is shown only through Zellij pane and tab names.
 
 ## Future package integration
 

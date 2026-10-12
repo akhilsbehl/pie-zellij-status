@@ -82,7 +82,6 @@ export default function piZellijStatus(pi: ExtensionAPI): void {
   const unsubscribeProcessTerminal = pi.events.on(SUBAGENT_PROCESS_TERMINAL_EVENT, finishSubagent);
 
   const setIdle = () => {
-    if (!idle) process.stdout.write("\x07");
     idle = true;
     enqueueUpdate();
   };
